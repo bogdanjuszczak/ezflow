@@ -84,7 +84,7 @@ class eZFlowPool
         $validNodes = $db->arrayQuery( "SELECT *
                                         FROM ezm_pool, ezcontentobject_tree
                                         WHERE ezm_pool.block_id='$blockID'
-                                          AND ezm_pool.ts_visible>0
+                                          #AND ezm_pool.ts_visible>0
                                           AND ezm_pool.ts_hidden=0
                                           AND ezcontentobject_tree.node_id = ezm_pool.node_id
                                         ORDER BY ezm_pool.priority DESC" );
@@ -92,6 +92,19 @@ class eZFlowPool
         if ( $asObject && !empty( $validNodes ) )
         {
             $validNodesObjects = array();
+            $orgSize = sizeof($validNodes);
+
+            // remove items without translation
+            foreach( $validNodes as $key => $item )
+            {
+                $contentObject = eZContentObject::fetch($item[object_id]);
+                if( empty($contentObject->CurrentLanguage) )
+                {
+                    unset($validNodes[$key]);
+                }
+            }
+
+            $postSize = sizeof($validNodes);
 
             foreach( $validNodes as $node )
             {
@@ -100,6 +113,43 @@ class eZFlowPool
             }
 
             $GLOBALS['eZFlowPool'][$blockID] = $validNodesObjects;
+
+            if( $orgSize > $postSize )
+            {
+
+
+                $validNodesObjects = array();
+
+                $fix = $db->arrayQuery( "SELECT *
+                                        FROM ezm_pool, ezcontentobject_tree
+                                        WHERE ezm_pool.block_id='$blockID'
+                                          #AND ezm_pool.ts_visible>0
+                                          #AND ezm_pool.ts_hidden=0
+                                          AND ezcontentobject_tree.node_id = ezm_pool.node_id
+                                        ORDER BY ezm_pool.priority DESC" );
+
+                foreach( $fix as $key => $item )
+                {
+                    $contentObject = eZContentObject::fetch($item[object_id]);
+                    if( empty($contentObject->CurrentLanguage) ) {
+                        unset($fix[$key]);
+                    }
+                }
+
+                $fix = array_values($fix);
+                foreach( $fix as $key => $node )
+                {
+                    $nodeID = $node['node_id'];
+                    $validNodesObjects[] = eZContentObjectTreeNode::fetch( $nodeID );
+                    if( $key == $orgSize - 1 )
+                    {
+                        break;
+                    }
+                }
+
+                $GLOBALS['eZFlowPool'][$blockID] = $validNodesObjects;
+
+            }
 
             return $validNodesObjects;
         }
